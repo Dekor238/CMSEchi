@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net5.0</TargetFramework>
+        <Title>Avaya CMS ECHI file decoder</Title>
+        <Description>Decode Avaya CMS ECHI files to TXT .csv format</Description>
+        <Copyright>Mikhail</Copyright>
+        <PackageIcon>barcode.ico</PackageIcon>
+        <PackageProjectUrl>https://github.com/Dekor238/CMSEchi</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Dekor238/CMSEchi</RepositoryUrl>
+        <AssemblyVersion>1.0</AssemblyVersion>
+        <FileVersion>1.0</FileVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Update="appsettings.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+</Project>
