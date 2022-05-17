@@ -1,18 +1,48 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace CMSEchi
 {
+    public enum Loglevel
+    {
+        Info,
+        Trace,
+        Warn,
+        Error
+    }
     class Program
     {
-        // Читаем файл .json для получения данных о формате файла CMS ECHI
         private static IReadOnlyList<CmsModel> config { get; set; }
 
+        // Logging errors in file
+        public static void LogFile(Enum loglevel, string messageText)
+        {
+            string date = DateTime.Now.ToString("yyyy-MM-dd");
+            string logdir = AppDomain.CurrentDomain.BaseDirectory;
+            StringBuilder log = new StringBuilder();
+            log.Append(DateTime.Now.ToString(CultureInfo.InvariantCulture))
+                .Append($"| {loglevel} |")
+                .Append(messageText)
+                .Append("\n");
+            try
+            {
+                string filename = $"{logdir}error_{date}.log";
+                File.AppendAllText(filename, log.ToString());
+            }
+            catch (Exception e)
+            {
+                if (e.StackTrace != null) LogFile(Loglevel.Error, e.Message.ToString() + "\n" + e.StackTrace.ToString());
+            }
+        }
+        
+        // Reading the .json file to get information about the CMS ECHI file format
         private static void ReadConfig()
         {
             try
@@ -26,11 +56,11 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: {e}");
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);
             }
         }
         
-        // Получаем список файлов для декодирования
+        // Get a list of files to decode
         private static string[] EchiFilesList(string path)
         {
             try
@@ -45,12 +75,11 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: {e}");
-            }
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            }
             return null;
         }
         
-        // Читаем заголовок файла ECHI, выводим версию CMS и порядковый номер файла
+        // Reading the ECHI file header, displaying the CMS version and file serial number
         private static int[] EchiFilesHead(string echiFilesList)
         {
             int[] fileHead = new int[2]; 
@@ -70,13 +99,12 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: {e}");
-            }
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            }
             return null;
         }
         
         
-        // Выводим расшифрованные данные в текстовый файл с разделителем в виде ","
+        // We output the decrypted data to a text file with a delimiter in the form of ","
         private static void DataExport(int fileHead, string outdir, string echiFile, string heads, StringBuilder data)
         {
             string file = $"{echiFile}_{fileHead}.txt";
@@ -98,15 +126,14 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: {e}");
-            }
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            }
         }
 
         static void Main(string[] args)
         {
             Console.WriteLine("---=== CMS ECHI files parser ===---");
             Console.WriteLine("-------------------------------------");
-            // Проверяем аргументы программы
+            // Checking program arguments
             if (args == null || args.Length == 0)
             {
                 Console.WriteLine("Для запуска программы необходимо указать аргументы.");
@@ -116,60 +143,61 @@ namespace CMSEchi
                 Environment.Exit(0);
             }
 
-            ReadConfig(); // Читаем файл .json
+            ReadConfig(); // Reading the .json file
             
-            string[] filesList = EchiFilesList(args[0]); // Получаем список файлов CMS ECHI для декодирования
-            Console.WriteLine($"Прочитано - {filesList.Length} файла(ов).");
+            string[] filesList = EchiFilesList(args[0]); // Get a list of CMS ECHI files to decode
+            LogFile(Loglevel.Info,$"Прочитано - {filesList.Length} файла(ов).");
 
-            // Читаем данные из файле и декодируем их
+            // Read data from file and decode it
             try
             {
-                StringBuilder result = new StringBuilder(); // создаем новый конструктор строки, куда поместим декодированные данные
+                StringBuilder result = new StringBuilder(); // create a new string constructor where we put the decoded data
                 for (int i = 0; i < filesList.Length; i++)
                 {
-                    int[] fileVersion = EchiFilesHead($"{args[0]}/{filesList[i]}"); // читаем в заголовке файла версию CMS
-                    var configData = config.First(s => s.version == fileVersion[0]); // ищем данные для декодирования по версии CMS в файле .json
+                    int[] fileVersion = EchiFilesHead($"{args[0]}/{filesList[i]}"); // read the CMS version in the file header
+                    // looking for data to decode according to the CMS version in the .json file
+                    var configData = config.First(s => s.version == fileVersion[0]); 
 
                     if (true)
                     {
-                        // массиве полей данный
+                        // array of fields given
                         int[] fieldsLength = Array.ConvertAll(configData.fieldsLength.Split(','), int.Parse);
                         
                         var fs = File.Open($"{args[0]}/{filesList[i]}", FileMode.Open);
                         byte[] data = new byte[fs.Length];
                         using (BinaryReader reader = new BinaryReader(fs))
                         {
-                            // начинаем читать данные из файла с 8 байта
-                            // т.к. первые 8 байт в каждом файле заняты под заголовок = версия CMS + порядковый номер файла
+                            // we start reading data from a file from 8 bytes
+                            // because the first 8 bytes in each file are used for the header = CMS version + file serial number
                             reader.BaseStream.Seek(8, SeekOrigin.Begin);
                             reader.Read(data, 0, Convert.ToInt32(fs.Length));
                             result.Clear();
-                            // нарезаем полученный массив данных на строки блиной ??? байт. ??? - длина байт берется из файла .json
+                            // we cut the received array of data into pancake lines ??? byte. ??? - byte length is taken from .json file
                             for (int j = 0; j < fs.Length - 8; j = j + configData.lineLength)
                             {
-                                // режем прочитанный массив данных на строки по ??? байт длиной. ??? - длина байт берется из файла .json
+                                // we cut the read data array into lines by ??? byte length. ??? - byte length is taken from .json file
                                 byte[] line = data.Skip(j).Take(configData.lineLength).ToArray(); 
 
-                                // режем строку на составляющие части по длине полей данных
-                                int position = 0; // позиция длины поля в массиве полей
-                                int skipCount = 0; // сколько байт пропускаем для получения данных
-                                while (position < fieldsLength.Length) // пока не достигли конца массива полей
+                                // cut the string into component parts according to the length of the data fields
+                                int position = 0; // field length position in field array
+                                int skipCount = 0; // how many bytes skip to get data
+                                while (position < fieldsLength.Length) // until you reach the end of the field array
                                 {
                                     byte[] decode = line.Skip(skipCount).Take(fieldsLength[position]).ToArray();
-                                    if (position == configData.bitsIndex) // если позиция = битовым данным, то раскладываем 1 байт на 8 бит.
+                                    if (position == configData.bitsIndex) // if position = bit data, then decompose 1 byte into 8 bits.
                                     {
                                         var bits = new BitArray(decode);
                                         for (int m = 0; m < bits.Length; m++)
                                             result.Append(Convert.ToInt16(bits[m])).Append(",");
                                     }
-                                    else if (position == configData.bitsIndex + 1) // если позиция = битовым данным +1, то берем 1 бит из этих данных
+                                    else if (position == configData.bitsIndex + 1) // if position = bit data +1, then take 1 bit from this data
                                     {
                                         var bits = new BitArray(decode);
                                         result.Append(Convert.ToInt16(bits[0])).Append(",");
                                     }
                                     else
                                     {
-                                        switch (fieldsLength[position]) // декодируем данные в зависимости от позиции и формата
+                                        switch (fieldsLength[position]) // decode data depending on position and format
                                         {
                                             case 1:
                                                 result.Append(Convert.ToInt16(decode[0])).Append(",");
@@ -200,7 +228,7 @@ namespace CMSEchi
                                 result.Append("\n");
                             }
                         }
-                        // Выгружаем декодированные данные в текстовый файл
+                        // Uploading decoded data to a text file
                         DataExport(fileVersion[1],args[1],filesList[i],configData.heads,result);
                         fs.Close();
                     }
@@ -208,7 +236,7 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                Console.WriteLine($"ERROR: {e}");
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);
             }
             Console.WriteLine("---=== CMS ECHI files parser END! ===---");
         }
