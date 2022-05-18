@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 
 namespace CMSEchi
 {
@@ -75,7 +74,8 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            }
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);
+            }
             return null;
         }
         
@@ -99,7 +99,8 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            }
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            
+            }
             return null;
         }
         
@@ -126,7 +127,8 @@ namespace CMSEchi
             }
             catch (Exception e)
             {
-                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            }
+                LogFile(Loglevel.Error,e.Message + "\n" + e.StackTrace);            
+            }
         }
 
         static void Main(string[] args)
@@ -146,6 +148,11 @@ namespace CMSEchi
             ReadConfig(); // Reading the .json file
             
             string[] filesList = EchiFilesList(args[0]); // Get a list of CMS ECHI files to decode
+            if (filesList == null || filesList.Length == 0)
+            {
+                LogFile(Loglevel.Info,$"Прочитано - 0 файла(ов).");
+                Environment.Exit(0);
+            }
             LogFile(Loglevel.Info,$"Прочитано - {filesList.Length} файла(ов).");
 
             // Read data from file and decode it
@@ -162,6 +169,7 @@ namespace CMSEchi
                     {
                         // array of fields given
                         int[] fieldsLength = Array.ConvertAll(configData.fieldsLength.Split(','), int.Parse);
+                        LogFile(Loglevel.Info,$"файл - {filesList[i]}, версия {configData.version}, длина полей - {fieldsLength.Length}, сумма полей - {fieldsLength.Sum()}.");
                         
                         var fs = File.Open($"{args[0]}/{filesList[i]}", FileMode.Open);
                         byte[] data = new byte[fs.Length];
